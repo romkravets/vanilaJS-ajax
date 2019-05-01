@@ -1,11 +1,13 @@
 import { HTTPServece } from "./http-service";
 
 const BTN_DEL_CLASS_NAME = 'btn_del';
-const LIST_ITEM_TEMPLATE = `<li class="list__item" id={{id}}>
-      <input type="checkbox" {{checked}}/>
-      <span>{{title}}</span>
+const CHECKBOX_CLASS_NAME = 'list__checkbox'
+const TITLE_ATT = 'title';
+const LIST_ITEM_TEMPLATE = `
+      <input type="checkbox" {{isChecked}} class="${CHECKBOX_CLASS_NAME}"/>
+      <span data-name="${TITLE_ATT}">{{title}}</span>
       <button type="button" class="${BTN_DEL_CLASS_NAME}">DELETE</button>
-</li>`
+`
 
 const URL = 'https://evening-dawn-11092.herokuapp.com/list';
 const TASK_ID_PREFIX = 'taskID';
@@ -41,11 +43,22 @@ export class TaskList {
       this.input.value = '';
 
       this.httpService.post(URL, {title}, (task) => {
-         this.renderOne(task);
+         this.list.appendChild(this.renderOne(task));
       });
    }
 
+   updateItem(taskId) {
+      const replaceElement = this.list.querySelector(`#${TASK_ID_PREFIX + taskId}`);
+      const id = taskId;
+      const title = replaceElement.querySelector( `[data-name*=${TITLE_ATT}]`).textContent;
+      const completed = replaceElement.querySelector(`.${CHECKBOX_CLASS_NAME}`).getAttribute('checked') ?  false : true;
 
+      this.httpService.put(`${URL}/${taskId}`, {id, title, completed}, (task) => {
+         const updeteTask = this.renderOne(task);
+         
+         this.list.replaceChild(updeteTask, replaceElement);
+      });
+   }
 
    deleteItem(taskId) {
       this.httpService.delete(`${URL}/${taskId}`, () => {
@@ -55,20 +68,34 @@ export class TaskList {
    }
 
    renderOne(task) {
-      const li = LIST_ITEM_TEMPLATE.replace('{{id}}',  TASK_ID_PREFIX + task.id).replace('{{title}}', task.title);
-      this.list.innerHTML = this.list.innerHTML + li;
+      const li = document.createElement('li');
+      li.id = TASK_ID_PREFIX + task.id;
+      li.innerHTML = LIST_ITEM_TEMPLATE
+      .replace('{{id}}',  TASK_ID_PREFIX + task.id)
+      .replace('{{title}}', task.title)
+      .replace(`{{isChecked}}`, task.completed ? 'checked' : '');
 
+      return li;
    }
-   
+
    renderList(tasks) {
       this.list = document.createElement('ul');
-      tasks.forEach((task) => this.renderOne(task));
+      const fragment = document.createDocumentFragment();
+      tasks.forEach((task) => {
+         fragment.appendChild(this.renderOne(task));
+      });
+
+      this.list.appendChild(fragment);
 
       this.list.addEventListener('click', (e) => {
          if (e.target.classList.contains(BTN_DEL_CLASS_NAME)) {
             e.stopPropagation();
             const id = e.target.closest('li').getAttribute('id').replace(TASK_ID_PREFIX, '');
             this.deleteItem(id);
+         }
+         if (e.target.classList.contains(CHECKBOX_CLASS_NAME)) {
+            const id = e.target.closest('li').getAttribute('id').replace(TASK_ID_PREFIX, '');
+            this.updateItem(id);
          }
       })
       this.rootElement.appendChild(this.list);
